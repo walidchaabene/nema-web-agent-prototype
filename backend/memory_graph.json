@@ -1,0 +1,759 @@
+{
+  "nodes": [
+    {
+      "id": "5f846578-e16a-43cb-93c6-5a2c9ea3f0a9",
+      "type": "action",
+      "label": "Take order",
+      "text": "Collect customer details and create a new flower order.",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080235.989235
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "419f8066-7df7-4fa5-a296-65ba887c280e",
+      "type": "action",
+      "label": "Book pickup time",
+      "text": "Schedule a pickup time for an existing or new order.",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080235.9893131
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "f485e62a-f288-4f7a-9502-d664f219f54d",
+      "type": "action",
+      "label": "Update order ledger",
+      "text": "Record an order or update its status in the order ledger.",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080235.989347
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "7b736a40-246f-44ad-92e9-0f6f9e7fdc40",
+      "type": "clue",
+      "label": "Same-Day Delivery",
+      "text": "Same-Day Delivery",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.6164532
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "7a50ce16-6645-4bb2-aaf2-211e1b713d6b",
+      "type": "question",
+      "label": "What is the cutoff time for same-day flower delivery in Seat",
+      "text": "What is the cutoff time for same-day flower delivery in Seattle?",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.6165068
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "9153ed58-cc77-46ef-ae31-25c098682c75",
+      "type": "answer",
+      "label": "Orders must be placed by 12PM PST for same-day delivery in C",
+      "text": "Orders must be placed by 12PM PST for same-day delivery in Central Seattle zip codes only.",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.616543
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "e388a722-a96f-4c74-964e-77c09fcc6c2f",
+      "type": "clue",
+      "label": "Pricing",
+      "text": "Pricing",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.61671
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "31e1dfa0-2a65-419b-8f50-5715d7d020c3",
+      "type": "question",
+      "label": "How much does the Red Poinsettia bouquet cost?",
+      "text": "How much does the Red Poinsettia bouquet cost?",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.6167219
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "a628f1fe-3b0a-4689-bf88-33e5cc4262c7",
+      "type": "answer",
+      "label": "The Red Poinsettia bouquet costs $38.95.",
+      "text": "The Red Poinsettia bouquet costs $38.95.",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.616732
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "c5e70743-96d7-41e1-989a-9f59cfd7aaf8",
+      "type": "question",
+      "label": "What flowers are included in the Calming Cobalt Bouquet?",
+      "text": "What flowers are included in the Calming Cobalt Bouquet?",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.6168058
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "058ac694-5cc2-46a5-8cd0-497ea89c4ebe",
+      "type": "answer",
+      "label": "The Calming Cobalt Bouquet includes white roses and fragrant",
+      "text": "The Calming Cobalt Bouquet includes white roses and fragrant lilies arranged in a rich cobalt glass vase.",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.616819
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "6a058f0a-e5a7-419e-8ad7-ef8e62680c34",
+      "type": "clue",
+      "label": "Ordering Process",
+      "text": "Ordering Process",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.6168802
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "5069ca82-f2a2-4f6e-a28d-927cce53f884",
+      "type": "question",
+      "label": "Is the Snowy Woods Bouquet available for purchase?",
+      "text": "Is the Snowy Woods Bouquet available for purchase?",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.6168928
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "4daba40d-1228-4756-af36-f9bcdfb6f798",
+      "type": "answer",
+      "label": "Yes, the Snowy Woods Bouquet is available for $67.95.",
+      "text": "Yes, the Snowy Woods Bouquet is available for $67.95.",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.616906
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "72955853-48da-4106-b46d-df9a3a70cfae",
+      "type": "question",
+      "label": "What is the price range for Designer’s Choice flower arrange",
+      "text": "What is the price range for Designer’s Choice flower arrangements?",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.616981
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "ebcdb558-035d-40c2-8822-6415c29653ad",
+      "type": "answer",
+      "label": "Designer’s Choice flower arrangements are priced at $50.00 a",
+      "text": "Designer’s Choice flower arrangements are priced at $50.00 and $55.00.",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.616995
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "0e933c91-957e-42b0-9f79-4443663b599b",
+      "type": "question",
+      "label": "What types of flowers are available in the Beautiful Memorie",
+      "text": "What types of flowers are available in the Beautiful Memories Collection?",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.6170702
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "f0e32099-56fd-4a5e-8a8d-116c98939442",
+      "type": "answer",
+      "label": "The Beautiful Memories Collection includes carnations, chrys",
+      "text": "The Beautiful Memories Collection includes carnations, chrysanthemums, and hydrangea.",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.6170828
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "b95a641c-2bf0-4497-8d31-e7779e04344f",
+      "type": "question",
+      "label": "What plants are included in the Spring Has Sprung Mixed Bask",
+      "text": "What plants are included in the Spring Has Sprung Mixed Basket?",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.617162
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "3463ac1c-13a6-4421-8036-4ef4379455f4",
+      "type": "answer",
+      "label": "The basket includes a purple African violet, yellow begonia,",
+      "text": "The basket includes a purple African violet, yellow begonia, pink kalanchoe, and white hypoestes arranged in a round basket.",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.617177
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "54e470b1-2c08-48e7-91c9-e088e47c55b5",
+      "type": "question",
+      "label": "What price ranges are available for anniversary flowers?",
+      "text": "What price ranges are available for anniversary flowers?",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.617292
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "ae369d18-428b-4246-b8d8-65940d996ef6",
+      "type": "answer",
+      "label": "Anniversary flowers are available in price ranges from $50 t",
+      "text": "Anniversary flowers are available in price ranges from $50 to $250.",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.622724
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "88c45a98-9bb0-4058-9c8e-5c1fe0397518",
+      "type": "clue",
+      "label": "Delivery Area",
+      "text": "Delivery Area",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.622883
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "e057ac1c-9c95-4c27-bc80-69f7beff98bd",
+      "type": "question",
+      "label": "What flowers and features are included in the Haunted House ",
+      "text": "What flowers and features are included in the Haunted House Bouquet?",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.6229062
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    },
+    {
+      "id": "41783fff-9e41-4a5d-8534-97bc5db040e3",
+      "type": "answer",
+      "label": "The bouquet includes orange gerberas, maroon miniature carna",
+      "text": "The bouquet includes orange gerberas, maroon miniature carnations, bronze daisy spray chrysanthemums, curly willow, seeded eucalyptus, and brown transparent oak leaves, delivered in a ceramic pumpkin jar.",
+      "intent_id": "sales-agent",
+      "metadata": {
+        "created_at": 1766080262.6229272
+      },
+      "stats": {
+        "pos": 0.0,
+        "neg": 0.0,
+        "views": 0.0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "fa8e1ffc-cefd-4aea-9cdc-deca347624ee",
+      "source": "7b736a40-246f-44ad-92e9-0f6f9e7fdc40",
+      "target": "7a50ce16-6645-4bb2-aaf2-211e1b713d6b",
+      "type": "describes_context",
+      "weight": 0.5,
+      "confidence": 0.6,
+      "metadata": {
+        "created_at": 1766080262.61657,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "ac934988-f10d-4fd3-8018-baed606b76bf",
+      "source": "7a50ce16-6645-4bb2-aaf2-211e1b713d6b",
+      "target": "9153ed58-cc77-46ef-ae31-25c098682c75",
+      "type": "answers",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.6166022,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "46538deb-1270-4ed2-8520-218a7ce38fec",
+      "source": "9153ed58-cc77-46ef-ae31-25c098682c75",
+      "target": "5f846578-e16a-43cb-93c6-5a2c9ea3f0a9",
+      "type": "next_step",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.616649,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "511551e2-2349-4a20-8b52-ca4d81605e6c",
+      "source": "e388a722-a96f-4c74-964e-77c09fcc6c2f",
+      "target": "31e1dfa0-2a65-419b-8f50-5715d7d020c3",
+      "type": "describes_context",
+      "weight": 0.5,
+      "confidence": 0.6,
+      "metadata": {
+        "created_at": 1766080262.616742,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "bdbcc7bb-7a78-4e93-ae84-5f9e0427cc58",
+      "source": "31e1dfa0-2a65-419b-8f50-5715d7d020c3",
+      "target": "a628f1fe-3b0a-4689-bf88-33e5cc4262c7",
+      "type": "answers",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.6167512,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "e4024c00-67be-4d00-9c59-55a7fc2788ab",
+      "source": "a628f1fe-3b0a-4689-bf88-33e5cc4262c7",
+      "target": "5f846578-e16a-43cb-93c6-5a2c9ea3f0a9",
+      "type": "next_step",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.6167638,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "ce7ace12-8ab2-4afe-91ab-c4885457b5f0",
+      "source": "e388a722-a96f-4c74-964e-77c09fcc6c2f",
+      "target": "c5e70743-96d7-41e1-989a-9f59cfd7aaf8",
+      "type": "describes_context",
+      "weight": 0.5,
+      "confidence": 0.6,
+      "metadata": {
+        "created_at": 1766080262.616829,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "55fb3ea1-7775-48e2-94d3-9011514507da",
+      "source": "c5e70743-96d7-41e1-989a-9f59cfd7aaf8",
+      "target": "058ac694-5cc2-46a5-8cd0-497ea89c4ebe",
+      "type": "answers",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.616838,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "c16d35eb-8080-4e9d-a5f5-12b9c36efa3a",
+      "source": "058ac694-5cc2-46a5-8cd0-497ea89c4ebe",
+      "target": "5f846578-e16a-43cb-93c6-5a2c9ea3f0a9",
+      "type": "next_step",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.6168509,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "39a3a393-1a14-409e-aa4a-6ac94185bfe2",
+      "source": "6a058f0a-e5a7-419e-8ad7-ef8e62680c34",
+      "target": "5069ca82-f2a2-4f6e-a28d-927cce53f884",
+      "type": "describes_context",
+      "weight": 0.5,
+      "confidence": 0.6,
+      "metadata": {
+        "created_at": 1766080262.616915,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "5b870221-0cbe-44e5-9433-6d9db1dc4a5d",
+      "source": "5069ca82-f2a2-4f6e-a28d-927cce53f884",
+      "target": "4daba40d-1228-4756-af36-f9bcdfb6f798",
+      "type": "answers",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.6169238,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "94b8dcc3-d7c4-4ee1-8906-3a13db971166",
+      "source": "4daba40d-1228-4756-af36-f9bcdfb6f798",
+      "target": "5f846578-e16a-43cb-93c6-5a2c9ea3f0a9",
+      "type": "next_step",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.616937,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "48de777c-8fb3-41d6-85a8-66d52724972d",
+      "source": "e388a722-a96f-4c74-964e-77c09fcc6c2f",
+      "target": "72955853-48da-4106-b46d-df9a3a70cfae",
+      "type": "describes_context",
+      "weight": 0.5,
+      "confidence": 0.6,
+      "metadata": {
+        "created_at": 1766080262.617005,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "2c147631-14a6-42eb-9a6a-c15cf85c1f22",
+      "source": "72955853-48da-4106-b46d-df9a3a70cfae",
+      "target": "ebcdb558-035d-40c2-8822-6415c29653ad",
+      "type": "answers",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.617014,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "438b6b81-e356-4893-b5e8-1a52b7c1c228",
+      "source": "ebcdb558-035d-40c2-8822-6415c29653ad",
+      "target": "5f846578-e16a-43cb-93c6-5a2c9ea3f0a9",
+      "type": "next_step",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.617027,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "821ed9a5-f5a5-4185-ad30-d54cdb692c8e",
+      "source": "e388a722-a96f-4c74-964e-77c09fcc6c2f",
+      "target": "0e933c91-957e-42b0-9f79-4443663b599b",
+      "type": "describes_context",
+      "weight": 0.5,
+      "confidence": 0.6,
+      "metadata": {
+        "created_at": 1766080262.6170921,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "a439df90-cb06-4bb5-913b-cd2419cdf9e4",
+      "source": "0e933c91-957e-42b0-9f79-4443663b599b",
+      "target": "f0e32099-56fd-4a5e-8a8d-116c98939442",
+      "type": "answers",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.617101,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "380d9c78-cf81-4e00-8936-abf0d3b4a1d3",
+      "source": "f0e32099-56fd-4a5e-8a8d-116c98939442",
+      "target": "5f846578-e16a-43cb-93c6-5a2c9ea3f0a9",
+      "type": "next_step",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.617114,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "f1789d5f-95c5-4ed2-a149-c733c1da1857",
+      "source": "e388a722-a96f-4c74-964e-77c09fcc6c2f",
+      "target": "b95a641c-2bf0-4497-8d31-e7779e04344f",
+      "type": "describes_context",
+      "weight": 0.5,
+      "confidence": 0.6,
+      "metadata": {
+        "created_at": 1766080262.617221,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "2bd497d4-427a-41ea-8bfe-c9e2a63f53a3",
+      "source": "b95a641c-2bf0-4497-8d31-e7779e04344f",
+      "target": "3463ac1c-13a6-4421-8036-4ef4379455f4",
+      "type": "answers",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.6172302,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "f3d217b4-7a19-42aa-932e-f62a301a1f64",
+      "source": "3463ac1c-13a6-4421-8036-4ef4379455f4",
+      "target": "5f846578-e16a-43cb-93c6-5a2c9ea3f0a9",
+      "type": "next_step",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.617245,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "04825778-f914-4b4b-91aa-35bde2e3891e",
+      "source": "e388a722-a96f-4c74-964e-77c09fcc6c2f",
+      "target": "54e470b1-2c08-48e7-91c9-e088e47c55b5",
+      "type": "describes_context",
+      "weight": 0.5,
+      "confidence": 0.6,
+      "metadata": {
+        "created_at": 1766080262.622753,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "0549507a-030c-4c58-b5cd-c643a8ffbb78",
+      "source": "54e470b1-2c08-48e7-91c9-e088e47c55b5",
+      "target": "ae369d18-428b-4246-b8d8-65940d996ef6",
+      "type": "answers",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.6227741,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "e3df5614-d37f-4f59-a3bc-6adb03e032fe",
+      "source": "ae369d18-428b-4246-b8d8-65940d996ef6",
+      "target": "5f846578-e16a-43cb-93c6-5a2c9ea3f0a9",
+      "type": "next_step",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.6228118,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "501fd500-ff39-4f87-8ebf-d604c043ec7d",
+      "source": "88c45a98-9bb0-4058-9c8e-5c1fe0397518",
+      "target": "e057ac1c-9c95-4c27-bc80-69f7beff98bd",
+      "type": "describes_context",
+      "weight": 0.5,
+      "confidence": 0.6,
+      "metadata": {
+        "created_at": 1766080262.6229382,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "bb0d320b-d7d9-443b-b179-de0d439c4334",
+      "source": "e057ac1c-9c95-4c27-bc80-69f7beff98bd",
+      "target": "41783fff-9e41-4a5d-8534-97bc5db040e3",
+      "type": "answers",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.6229498,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    },
+    {
+      "id": "4b8185ef-e70f-49af-96cb-b404f4858040",
+      "source": "41783fff-9e41-4a5d-8534-97bc5db040e3",
+      "target": "5f846578-e16a-43cb-93c6-5a2c9ea3f0a9",
+      "type": "next_step",
+      "weight": 0.5,
+      "confidence": 0.5,
+      "metadata": {
+        "created_at": 1766080262.622968,
+        "intent_id": "sales-agent",
+        "source": "website_ingest",
+        "website": "https://www.seattleflowerlady.com/"
+      }
+    }
+  ]
+}
