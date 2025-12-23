@@ -6,7 +6,9 @@ import fetch from "node-fetch";
 import cors from "cors";
 
 
-dotenv.config();
+if (process.env.NODE_ENV !== "production") {
+  dotenv.config();
+}
 
 const {
   TWILIO_ACCOUNT_SID,
