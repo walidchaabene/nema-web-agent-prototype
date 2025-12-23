@@ -20,8 +20,9 @@ const {
 
 
 if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
-  console.error("Missing TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN in .env");
-  process.exit(1);
+  console.warn(
+    "[startup] TWILIO creds missing — phone features disabled until env vars are set"
+  );
 }
 
 const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
@@ -285,8 +286,6 @@ app.get("/", (req, res) => {
   res.send("Twilio ↔ Nema phone orchestrator is running.");
 });
 
-app.listen(PORT, () => {
-  console.log(
-    `Twilio-Nema orchestrator listening on http://localhost:${PORT}`
-  );
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Twilio-Nema orchestrator listening on port ${PORT}`);
 });
