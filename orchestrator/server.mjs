@@ -6,9 +6,6 @@ import fetch from "node-fetch";
 import cors from "cors";
 
 
-if (process.env.NODE_ENV !== "production") {
-  dotenv.config();
-}
 
 const {
   TWILIO_ACCOUNT_SID,
@@ -16,10 +13,9 @@ const {
   BACKEND_BASE_URL = "http://localhost:8000",
   PUBLIC_BASE_URL,
   DEFAULT_AREA_CODE = "206",
-  PORT = process.env.PORT || 3003,
 } = process.env;
 
-
+const PORT = Number(process.env.PORT);
 
 if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
   console.warn(
@@ -288,6 +284,7 @@ app.get("/", (req, res) => {
   res.send("Twilio ↔ Nema phone orchestrator is running.");
 });
 
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, () => {
   console.log(`Twilio-Nema orchestrator listening on port ${PORT}`);
 });
+
