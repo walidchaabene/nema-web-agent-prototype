@@ -16,7 +16,7 @@ const {
   BACKEND_BASE_URL = "http://localhost:8000",
   PUBLIC_BASE_URL,
   DEFAULT_AREA_CODE = "206",
-  PORT = process.env.PORT || 8080,
+  PORT = process.env.PORT || 3003,
 } = process.env;
 
 
