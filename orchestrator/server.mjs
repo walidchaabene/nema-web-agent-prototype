@@ -15,7 +15,7 @@ const {
   DEFAULT_AREA_CODE = "206",
 } = process.env;
 
-const PORT = Number(process.env.PORT);
+const PORT = process.env.PORT || 80;
 
 if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
   console.warn(
