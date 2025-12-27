@@ -10,12 +10,13 @@ import cors from "cors";
 const {
   TWILIO_ACCOUNT_SID,
   TWILIO_AUTH_TOKEN,
-  BACKEND_BASE_URL = "http://localhost:8000",
+  BACKEND_BASE_URL = "https://api.sophia-podcast-be.com/graph",
   PUBLIC_BASE_URL,
   DEFAULT_AREA_CODE = "206",
 } = process.env;
 
 const PORT = process.env.PORT || 8080;
+
 
 
 if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
@@ -108,6 +109,7 @@ async function buildGraph(sessionId) {
 //  - Returns the number to the frontend
 // ------------------------------------------------------------
 
+/*
 app.post("/api/phone/go-live", async (req, res) => {
   if (!PUBLIC_BASE_URL) {
     return res.status(400).json({
@@ -161,6 +163,52 @@ app.post("/api/phone/go-live", async (req, res) => {
     });
   }
 });
+*/
+
+TWILIO_REUSE_NUMBER=true
+TWILIO_NUMBER_SID=PNa95067fd749f344a86b6ccab6e331c74
+
+app.post("/api/phone/go-live", async (req, res) => {
+  if (!PUBLIC_BASE_URL) {
+    return res.status(400).json({ ok: false, error: "PUBLIC_BASE_URL not set" });
+  }
+
+  // TEMP — until frontend sends them
+  const agentId = "default";
+  const username = "sarah";
+
+  const voiceUrl =
+    `${PUBLIC_BASE_URL}/voice` +
+    `?agentId=${encodeURIComponent(agentId)}` +
+    `&username=${encodeURIComponent(username)}`;
+
+  try {
+    const incoming = await twilioClient
+      .incomingPhoneNumbers(process.env.TWILIO_NUMBER_SID)
+      .update({
+        voiceUrl,
+        voiceMethod: "POST",
+      });
+
+    console.log("[go-live] webhook updated →", voiceUrl);
+
+    return res.json({
+      ok: true,
+      phoneNumber: incoming.phoneNumber,
+      reused: true,
+    });
+  } catch (err) {
+    console.error("[go-live] error:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "Failed to update webhook",
+    });
+  }
+});
+
+
+
+
 
 // ------------------------------------------------------------
 // Voice entry point: /voice
@@ -168,10 +216,10 @@ app.post("/api/phone/go-live", async (req, res) => {
 
 app.post("/voice", (req, res) => {
   console.log("[/voice] incoming call body:", req.body);
-
+  const { agentId, username } = req.query;
   const twiml = new twilio.twiml.VoiceResponse();
   const callSid = req.body.CallSid || `call-${Date.now()}`;
-  const sessionId = callSid;
+  const sessionId = `${username}:${agentId}:${callSid}`;
 
   const greeting =
     "Hi, this is Nema, your sales assistant. How can I help you today?";
