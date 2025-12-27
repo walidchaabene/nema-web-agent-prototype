@@ -165,15 +165,11 @@ app.post("/api/phone/go-live", async (req, res) => {
 });
 */
 
-TWILIO_REUSE_NUMBER=true
-TWILIO_NUMBER_SID=PNa95067fd749f344a86b6ccab6e331c74
-
 app.post("/api/phone/go-live", async (req, res) => {
   if (!PUBLIC_BASE_URL) {
     return res.status(400).json({ ok: false, error: "PUBLIC_BASE_URL not set" });
   }
 
-  // TEMP — until frontend sends them
   const agentId = "default";
   const username = "sarah";
 
@@ -205,6 +201,7 @@ app.post("/api/phone/go-live", async (req, res) => {
     });
   }
 });
+
 
 
 
