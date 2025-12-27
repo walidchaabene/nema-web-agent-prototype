@@ -1,7 +1,7 @@
 import express from "express";
 import bodyParser from "body-parser";
 import dotenv from "dotenv";
-import twilio from "twilio"; 
+import twilio from "twilio";
 import fetch from "node-fetch";
 import cors from "cors";
 
@@ -181,8 +181,14 @@ app.post("/api/phone/go-live", async (req, res) => {
     return res.status(400).json({ ok: false, error: "PUBLIC_BASE_URL not set" });
   }
 
-  const agentId = "default";
-  const username = "sarah";
+  const { agentId, username } = req.body;
+
+  if (!agentId || !username) {
+    return res.status(400).json({
+      ok: false,
+      error: "agentId and username are required",
+    });
+  }
 
   const voiceUrl =
     `${PUBLIC_BASE_URL}/voice` +
@@ -233,7 +239,7 @@ app.post("/voice", (req, res) => {
     "Hi, this is Nema, your sales assistant. How can I help you today?";
 
   // Log initial greeting as agent turn (optional)
-  postSessionMessage(sessionId, "agent", greeting).catch(() => {});
+  postSessionMessage(sessionId, "agent", greeting).catch(() => { });
 
   twiml.say(
     {
