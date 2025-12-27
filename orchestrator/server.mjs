@@ -227,7 +227,7 @@ app.post("/api/phone/go-live", async (req, res) => {
 // ------------------------------------------------------------
 // Voice entry point: /voice
 // ------------------------------------------------------------
-
+/*
 app.post("/voice", (req, res) => {
   console.log("[/voice] incoming call body:", req.body);
   const { agentId, username } = req.query;
@@ -267,7 +267,24 @@ app.post("/voice", (req, res) => {
   res.type("text/xml");
   res.send(twiml.toString());
 });
+*/
 
+app.post("/voice", (req, res) => {
+  try {
+    const twiml = new twilio.twiml.VoiceResponse();
+
+    twiml.say(
+      { voice: "Polly.Joanna", language: "en-US" },
+      "System online. Please say anything."
+    );
+
+    res.type("text/xml");
+    return res.send(twiml.toString());
+  } catch (err) {
+    console.error("VOICE CRASH:", err);
+    res.status(200).send("<Response></Response>");
+  }
+});
 // ------------------------------------------------------------
 // /gather: Twilio STT → Nema → Twilio TTS
 // ------------------------------------------------------------
