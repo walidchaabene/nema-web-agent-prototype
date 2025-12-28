@@ -177,10 +177,6 @@ app.post("/api/phone/go-live", async (req, res) => {
 */
 
 app.post("/api/phone/go-live", async (req, res) => {
-  if (!PUBLIC_BASE_URL) {
-    return res.status(400).json({ ok: false, error: "PUBLIC_BASE_URL not set" });
-  }
-
   const { agentId, username } = req.body;
 
   if (!agentId || !username) {
@@ -203,15 +199,12 @@ app.post("/api/phone/go-live", async (req, res) => {
         voiceMethod: "POST",
       });
 
-    console.log("[go-live] webhook updated →", voiceUrl);
-
     return res.json({
       ok: true,
       phoneNumber: incoming.phoneNumber,
       reused: true,
     });
   } catch (err) {
-    console.error("[go-live] error:", err);
     return res.status(500).json({
       ok: false,
       error: "Failed to update webhook",
@@ -221,31 +214,46 @@ app.post("/api/phone/go-live", async (req, res) => {
 
 
 
-
-
-
 // ------------------------------------------------------------
 // Voice entry point: /voice
 // ------------------------------------------------------------
 
 app.post("/voice", (req, res) => {
   console.log("[/voice] incoming call body:", req.body);
-  const { agentId, username } = req.query;
+
+  let { agentId, username, sessionId } = req.query;
   const twiml = new twilio.twiml.VoiceResponse();
+
+  // 🔒 Recover agentId + username from sessionId if needed
+  if ((!agentId || !username) && sessionId) {
+    const parts = String(sessionId).split(":");
+    if (parts.length >= 3) {
+      username = parts[0];
+      agentId = parts[1];
+    }
+  }
+
+  // 🛑 Hard guard (VERY IMPORTANT)
+  if (!agentId || !username) {
+    console.error("[/voice] missing agentId or username", req.query);
+    twiml.say(
+      { voice: "Polly.Joanna", language: "en-US" },
+      "Sorry, this call is not configured correctly yet."
+    );
+    res.type("text/xml");
+    return res.send(twiml.toString());
+  }
+
   const callSid = req.body.CallSid || `call-${Date.now()}`;
-  const sessionId = `${username}:${agentId}:${callSid}`;
+  sessionId = sessionId || `${username}:${agentId}:${callSid}`;
 
   const greeting =
     "Hi, this is Nema, your sales assistant. How can I help you today?";
 
-  // Log initial greeting as agent turn (optional)
-  postSessionMessage(sessionId, "agent", greeting).catch(() => { });
+  postSessionMessage(sessionId, "agent", greeting).catch(() => {});
 
   twiml.say(
-    {
-      voice: "Polly.Joanna",
-      language: "en-US",
-    },
+    { voice: "Polly.Joanna", language: "en-US" },
     greeting
   );
 
@@ -257,16 +265,14 @@ app.post("/voice", (req, res) => {
   });
 
   gather.say(
-    {
-      voice: "Polly.Joanna",
-      language: "en-US",
-    },
+    { voice: "Polly.Joanna", language: "en-US" },
     "You can ask about delivery, availability, or pricing."
   );
 
   res.type("text/xml");
   res.send(twiml.toString());
 });
+
 
 // ------------------------------------------------------------
 // /gather: Twilio STT → Nema → Twilio TTS
@@ -279,6 +285,16 @@ app.post("/gather", async (req, res) => {
   const speechResult = (req.body.SpeechResult || "").trim();
   const confidence = req.body.Confidence;
 
+  if (!sessionId || !sessionId.includes(":")) {
+    console.error("[/gather] invalid sessionId", sessionId);
+    twiml.say(
+      { voice: "Polly.Joanna", language: "en-US" },
+      "Sorry, something went wrong with this call."
+    );
+    res.type("text/xml");
+    return res.send(twiml.toString());
+  }
+
   console.log("[/gather] session:", sessionId);
   console.log("[/gather] speechResult:", speechResult);
   console.log("[/gather] confidence:", confidence);
@@ -288,7 +304,7 @@ app.post("/gather", async (req, res) => {
       { voice: "Polly.Joanna", language: "en-US" },
       "I didn't catch that. Let's try again."
     );
-    twiml.redirect("/voice");
+    twiml.redirect(`/voice?sessionId=${encodeURIComponent(sessionId)}`);
     res.type("text/xml");
     return res.send(twiml.toString());
   }
