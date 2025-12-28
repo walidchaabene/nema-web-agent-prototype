@@ -40,8 +40,7 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
+
 
 // Twilio sends URL-encoded form bodies
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -217,7 +216,7 @@ app.post("/api/phone/go-live", async (req, res) => {
 // ------------------------------------------------------------
 // Voice entry point: /voice
 // ------------------------------------------------------------
-
+/*
 app.post("/voice", (req, res) => {
   console.log("[/voice] incoming call body:", req.body);
 
@@ -272,7 +271,41 @@ app.post("/voice", (req, res) => {
   res.type("text/xml");
   res.send(twiml.toString());
 });
+*/
 
+app.post("/voice", (req, res) => {
+  console.log("VOICE HIT", req.query);
+  try {
+    const { agentId, username, sessionId } = req.query;
+    const twiml = new twilio.twiml.VoiceResponse();
+
+    if (!agentId || !username) {
+      twiml.say("This phone agent is not configured yet.");
+      res.type("text/xml");
+      return res.send(twiml.toString());
+    }
+
+    twiml.say(
+      { voice: "Polly.Joanna", language: "en-US" },
+      "Hi, this is Nema, your sales assistant. How can I help you today?"
+    );
+
+    twiml.gather({
+      input: "speech",
+      action: `/gather?sessionId=${encodeURIComponent(
+        `${username}:${agentId}:${req.body.CallSid || Date.now()}`
+      )}`,
+      method: "POST",
+      speechTimeout: "auto",
+    });
+
+    res.type("text/xml");
+    res.send(twiml.toString());
+  } catch (err) {
+    console.error("[/voice] FATAL:", err);
+    res.status(200).send("<Response></Response>");
+  }
+});
 
 // ------------------------------------------------------------
 // /gather: Twilio STT → Nema → Twilio TTS
