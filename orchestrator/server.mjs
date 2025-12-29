@@ -18,6 +18,7 @@ const {
 const PORT = process.env.PORT || 8080;
 
 
+const { BACKEND_SERVICE_TOKEN } = process.env;
 
 if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
   console.warn(
@@ -41,6 +42,8 @@ app.use(
   })
 );
 
+console.log("🔥 HARD RESET BUILD 2025-12-29-EB-CACHE-FIX 🔥");
+
 
 // Twilio sends URL-encoded form bodies
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -49,12 +52,18 @@ app.use(bodyParser.json());
 // ------------------------------------------------------------
 // Call your Nema chat backend (same brain as chat UX)
 // ------------------------------------------------------------
+function backendHeaders() {
+  return {
+    "Content-Type": "application/json",
+    "X-Service-Token": BACKEND_SERVICE_TOKEN,
+  };
+}
 
 async function callNemaAgent(sessionId, message) {
   try {
     const res = await fetch(`${BACKEND_BASE_URL}/api/nema/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: backendHeaders(),
       body: JSON.stringify({ sessionId, message }),
     });
     if (!res.ok) {
@@ -89,7 +98,7 @@ async function postSessionMessage(sessionId, role, text) {
       )}/message`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: backendHeaders(),
         body: JSON.stringify({ role, text }),
       }
     );
@@ -104,7 +113,9 @@ async function buildGraph(sessionId) {
       `${BACKEND_BASE_URL}/api/sessions/${encodeURIComponent(
         sessionId
       )}/build-graph`,
-      { method: "POST" }
+      { method: "POST",
+        headers: backendHeaders(),
+       }
     );
   } catch (err) {
     console.error("[session] build-graph error:", err);
@@ -274,37 +285,42 @@ app.post("/voice", (req, res) => {
 */
 
 app.post("/voice", (req, res) => {
-  console.log("VOICE HIT", req.query);
-  try {
-    const { agentId, username, sessionId } = req.query;
-    const twiml = new twilio.twiml.VoiceResponse();
+  const twiml = new twilio.twiml.VoiceResponse();
 
-    if (!agentId || !username) {
-      twiml.say("This phone agent is not configured yet.");
-      res.type("text/xml");
-      return res.send(twiml.toString());
+  let { agentId, username, sessionId } = req.query;
+
+  // 🔐 Recover from sessionId
+  if ((!agentId || !username) && sessionId) {
+    const parts = String(sessionId).split(":");
+    if (parts.length >= 3) {
+      username = parts[0];
+      agentId = parts[1];
     }
-
-    twiml.say(
-      { voice: "Polly.Joanna", language: "en-US" },
-      "Hi, this is Nema, your sales assistant. How can I help you today?"
-    );
-
-    twiml.gather({
-      input: "speech",
-      action: `/gather?sessionId=${encodeURIComponent(
-        `${username}:${agentId}:${req.body.CallSid || Date.now()}`
-      )}`,
-      method: "POST",
-      speechTimeout: "auto",
-    });
-
-    res.type("text/xml");
-    res.send(twiml.toString());
-  } catch (err) {
-    console.error("[/voice] FATAL:", err);
-    res.status(200).send("<Response></Response>");
   }
+
+  if (!agentId || !username) {
+    twiml.say("This phone agent is not configured yet.");
+    res.type("text/xml");
+    return res.send(twiml.toString());
+  }
+
+  const callSid = req.body.CallSid || Date.now();
+  sessionId = sessionId || `${username}:${agentId}:${callSid}`;
+
+  twiml.say(
+    { voice: "Polly.Joanna", language: "en-US" },
+    "Hi, this is Nema, your sales assistant. How can I help you today?"
+  );
+
+  twiml.gather({
+    input: "speech",
+    action: `/gather?sessionId=${encodeURIComponent(sessionId)}`,
+    method: "POST",
+    speechTimeout: "auto",
+  });
+
+  res.type("text/xml");
+  res.send(twiml.toString());
 });
 
 // ------------------------------------------------------------
@@ -346,7 +362,19 @@ app.post("/gather", async (req, res) => {
   await postSessionMessage(sessionId, "customer", speechResult);
 
   // Call Nema chat backend (graph-informed brain)
-  const agentResp = await callNemaAgent(sessionId, speechResult);
+  const agentResp = await Promise.race([
+    callNemaAgent(sessionId, speechResult),
+    new Promise(resolve =>
+      setTimeout(
+        () =>
+          resolve({
+            reply: "Let me check that for you…",
+            action: "NONE",
+          }),
+        8000
+      )
+    ),
+  ]);
   const replyText =
     (agentResp.reply && agentResp.reply.trim()) ||
     "I'm not sure how to answer that yet.";
