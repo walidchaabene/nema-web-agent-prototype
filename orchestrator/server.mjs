@@ -1,3 +1,4 @@
+// server.mjs
 import express from "express";
 import bodyParser from "body-parser";
 import dotenv from "dotenv";
@@ -9,14 +10,20 @@ import { WebSocket, WebSocketServer } from "ws";
 
 dotenv.config();
 
+// Crash visibility (helps explain 502s if Node dies)
+process.on("uncaughtException", (err) =>
+  console.error("[fatal] uncaughtException", err)
+);
+process.on("unhandledRejection", (err) =>
+  console.error("[fatal] unhandledRejection", err)
+);
+
 const {
   TWILIO_ACCOUNT_SID,
   TWILIO_AUTH_TOKEN,
 
-  // ✅ IMPORTANT: base should be ORIGIN only (no /graph)
-  BACKEND_BASE_URL = "https://api.sophia-podcast-be.com",
+  BACKEND_BASE_URL = "https://api.sophia-podcast-be.com/graph",
   PUBLIC_BASE_URL,
-  DEFAULT_AREA_CODE = "206",
 
   BACKEND_SERVICE_TOKEN,
   TWILIO_NUMBER_SID,
@@ -28,17 +35,19 @@ const {
 } = process.env;
 
 const PORT = process.env.PORT || 8080;
-
 const now = () => new Date().toISOString();
 
 if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
-  console.warn("[startup] TWILIO creds missing — phone features disabled until env vars are set");
+  console.warn("[startup] TWILIO creds missing");
 }
 if (!OPENAI_API_KEY) {
-  console.warn("[startup] OPENAI_API_KEY missing — Realtime features disabled until env var is set");
+  console.warn("[startup] OPENAI_API_KEY missing — Realtime disabled");
 }
 if (!PUBLIC_BASE_URL || !PUBLIC_BASE_URL.startsWith("https://")) {
-  console.warn("[startup] PUBLIC_BASE_URL missing or not https:// — Media-stream URL may be invalid");
+  console.warn("[startup] PUBLIC_BASE_URL missing or not https://");
+}
+if (!BACKEND_SERVICE_TOKEN) {
+  console.warn("[startup] BACKEND_SERVICE_TOKEN missing — tool calls will fail");
 }
 
 const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
@@ -57,14 +66,12 @@ app.use(
   })
 );
 
-console.log("🔥 ORCH BUILD 2025-12-30-STABILITY-FIX 🔥");
-
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 const server = http.createServer(app);
 
-// ------------ helpers ------------
+// ---------- Helpers ----------
 
 const safeJsonParse = (s) => {
   try {
@@ -86,34 +93,9 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = 6000) {
   const ac = new AbortController();
   const id = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { ...opts, signal: ac.signal });
-    return res;
+    return await fetch(url, { ...opts, signal: ac.signal });
   } finally {
     clearTimeout(id);
-  }
-}
-
-// Nema chat backend (optional fallback brain)
-async function callNemaAgent(sessionId, message) {
-  try {
-    const res = await fetchWithTimeout(
-      `${BACKEND_BASE_URL}/api/nema/chat`,
-      {
-        method: "POST",
-        headers: backendHeaders(sessionId),
-        body: JSON.stringify({ sessionId, message }),
-      },
-      8000
-    );
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("[nema-agent] backend error:", res.status, text);
-      return { reply: "Sorry, I'm having trouble answering right now.", action: "NONE" };
-    }
-    return await res.json();
-  } catch (err) {
-    console.error("[nema-agent] error:", err);
-    return { reply: "Sorry, something went wrong talking to Nema.", action: "NONE" };
   }
 }
 
@@ -133,41 +115,11 @@ async function postSessionMessage(sessionId, role, text) {
   }
 }
 
-async function buildGraph(sessionId) {
-  try {
-    await fetchWithTimeout(
-      `${BACKEND_BASE_URL}/api/sessions/${encodeURIComponent(sessionId)}/build-graph`,
-      {
-        method: "POST",
-        headers: backendHeaders(sessionId),
-      },
-      8000
-    );
-  } catch (err) {
-    console.error("[session] build-graph error:", err);
-  }
-}
-
-async function getBusinessName(sessionId) {
-  try {
-    const res = await fetchWithTimeout(
-      `${BACKEND_BASE_URL}/api/business/profile`,
-      { headers: backendHeaders(sessionId) },
-      5000
-    );
-    const data = await res.json().catch(() => null);
-    const name = data?.profile?.business_name;
-    return (name && String(name).trim()) || "our business";
-  } catch (err) {
-    console.error("[business-name] error:", err);
-    return "our business";
-  }
-}
-
 async function getGraphContext(question, sessionId) {
+  const url = `${BACKEND_BASE_URL}/api/tools/get-graph-context`;
   try {
     const res = await fetchWithTimeout(
-      `${BACKEND_BASE_URL}/api/tools/get-graph-context`,
+      url,
       {
         method: "POST",
         headers: backendHeaders(sessionId),
@@ -176,51 +128,50 @@ async function getGraphContext(question, sessionId) {
       6000
     );
 
+    const text = await res.text();
+    let data = null;
+    try {
+      data = JSON.parse(text);
+    } catch {}
+
+    console.log("[graph-context] req", {
+      status: res.status,
+      sessionId,
+      q: (question || "").slice(0, 120),
+    });
+
     if (!res.ok) {
-      const text = await res.text();
-      console.error("[graph-context] backend error:", res.status, text);
-      return {
-        question,
-        facts: [],
-        actions: [],
-        confidence: 0.0,
-        reason: `Backend error ${res.status}`,
-      };
+      console.error("[graph-context] BAD", { status: res.status, body: text.slice(0, 300) });
+      return { question, facts: [], actions: [], confidence: 0.0, reason: `Backend error ${res.status}` };
     }
-    return await res.json();
+
+    const factsLen = Array.isArray(data?.facts) ? data.facts.length : 0;
+    console.log("[graph-context] ok", { factsLen, confidence: data?.confidence, reason: data?.reason });
+    return data;
   } catch (err) {
-    console.error("[graph-context] error:", err);
-    return {
-      question,
-      facts: [],
-      actions: [],
-      confidence: 0.0,
-      reason: "Graph context call failed",
-    };
+    console.error("[graph-context] EXCEPTION", { err: String(err) });
+    return { question, facts: [], actions: [], confidence: 0.0, reason: "Graph context call failed" };
   }
 }
 
-// ------------ Twilio Media Streams + Realtime ------------
+// ---------- Health endpoint (use for EB + warm pings) ----------
 
-// WebSocket server for Twilio media streams
-const wss = new WebSocketServer({ noServer: true });
+app.get("/health", (req, res) => res.status(200).send("ok"));
 
-server.on("upgrade", (req, socket, head) => {
-  const url = req.url || "";
-  if (url.startsWith("/media-stream")) {
-    wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
-  } else {
-    socket.destroy();
-  }
-});
+// ---------- Stream status callback (Twilio wants FAST 2xx) ----------
 
-// stream status callback
 app.post("/stream-status", (req, res) => {
-  console.log("[stream-status]", now(), req.body);
-  res.sendStatus(200);
+  try {
+    console.log("[stream-status]", now(), {
+      StreamEvent: req.body?.StreamEvent,
+      StreamSid: req.body?.StreamSid,
+      CallSid: req.body?.CallSid,
+    });
+  } catch {}
+  return res.sendStatus(204);
 });
 
-// ------------ Go Live ------------
+// ---------- Go Live ----------
 
 app.post("/api/phone/go-live", async (req, res) => {
   const { agentId, username } = req.body;
@@ -246,55 +197,86 @@ app.post("/api/phone/go-live", async (req, res) => {
   }
 });
 
-// ------------ /voice: TwiML uses <Connect><Stream> ------------
+// ---------- /voice (MUST be fast; never call backend) ----------
 
 app.post("/voice", (req, res) => {
-  const twiml = new twilio.twiml.VoiceResponse();
+  const t0 = Date.now();
+  console.log("[/voice] start", { at: now() });
 
-  let { agentId, username, sessionId } = req.query;
+  try {
+    const twiml = new twilio.twiml.VoiceResponse();
 
-  if ((!agentId || !username) && sessionId) {
-    const parts = String(sessionId).split(":");
-    if (parts.length >= 3) {
-      username = parts[0];
-      agentId = parts[1];
+    let { agentId, username, sessionId } = req.query;
+
+    if ((!agentId || !username) && sessionId) {
+      const parts = String(sessionId).split(":");
+      if (parts.length >= 3) {
+        username = parts[0];
+        agentId = parts[1];
+      }
     }
+
+    if (!agentId || !username) {
+      twiml.say("This phone agent is not configured yet.");
+      const xml = twiml.toString();
+      console.log("[/voice] send (unconfigured)", { ms: Date.now() - t0 });
+      return res.type("text/xml").status(200).send(xml);
+    }
+
+    const callSid = req.body.CallSid || Date.now();
+    sessionId = sessionId || `${username}:${agentId}:${callSid}`;
+
+    const wsBase = PUBLIC_BASE_URL.replace(/^https:\/\//, "wss://");
+    const wsUrl = `${wsBase}/media-stream`;
+
+    const connect = twiml.connect();
+    const stream = connect.stream({
+      url: wsUrl,
+      track: "inbound_track",
+      statusCallback: `${PUBLIC_BASE_URL}/stream-status`,
+      statusCallbackMethod: "POST",
+    });
+
+    stream.parameter({ name: "sessionId", value: sessionId });
+
+    twiml.pause({ length: 600 });
+
+    const xml = twiml.toString();
+    console.log("[/voice] send", { ms: Date.now() - t0, sessionId });
+    return res.type("text/xml").status(200).send(xml);
+  } catch (err) {
+    console.error("[/voice] fatal", err);
+    const twiml = new twilio.twiml.VoiceResponse();
+    twiml.say("Sorry, something went wrong. Please try again.");
+    const xml = twiml.toString();
+    console.log("[/voice] send (error)", { ms: Date.now() - t0 });
+    return res.type("text/xml").status(200).send(xml);
   }
-
-  if (!agentId || !username) {
-    twiml.say("This phone agent is not configured yet. Please contact your administrator.");
-    res.type("text/xml");
-    return res.send(twiml.toString());
-  }
-
-  const callSid = req.body.CallSid || Date.now();
-  sessionId = sessionId || `${username}:${agentId}:${callSid}`;
-
-  const wsBase = PUBLIC_BASE_URL.replace(/^https:\/\//, "wss://");
-  const wsUrl = `${wsBase}/media-stream`;
-
-  const connect = twiml.connect();
-  const stream = connect.stream({
-    url: wsUrl,
-    track: "inbound_track",
-    statusCallback: `${PUBLIC_BASE_URL}/stream-status`,
-    statusCallbackMethod: "POST",
-  });
-
-  stream.parameter({ name: "sessionId", value: sessionId });
-
-  // Keep call open
-  twiml.pause({ length: 600 });
-
-  res.type("text/xml").send(twiml.toString());
 });
 
-// ------------ Realtime orchestration per call ------------
+// ---------- Twilio Media Streams + Realtime ----------
+
+const wss = new WebSocketServer({ noServer: true });
+
+server.on("upgrade", (req, socket, head) => {
+  const url = req.url || "";
+  if (url.startsWith("/media-stream")) {
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
+  } else {
+    socket.destroy();
+  }
+});
 
 wss.on("connection", (twilioWs, req) => {
   let sessionId = `call-${Date.now()}`;
   let streamSid = null;
+
+  // Buffer audio until streamSid exists (fixes “silent call” race)
+  const pendingAudio = [];
+  const MAX_PENDING_AUDIO = 200; // safety cap
+
   let oaiReady = false;
+  let audioFrames = 0;
 
   const sendToTwilio = (obj) => {
     try {
@@ -316,13 +298,25 @@ wss.on("connection", (twilioWs, req) => {
 
   const sendToOAI = (obj) => {
     try {
-      oaiWs.send(JSON.stringify(obj));
+      if (oaiWs.readyState === 1) {
+        oaiWs.send(JSON.stringify(obj));
+      }
     } catch (err) {
       console.error("[oaiWs.send] error:", err);
     }
   };
 
-  oaiWs.on("open", async () => {
+  const flushPendingAudio = () => {
+    if (!streamSid || pendingAudio.length === 0) return;
+    while (pendingAudio.length) {
+      const delta = pendingAudio.shift();
+      sendToTwilio({ event: "media", streamSid, media: { payload: delta } });
+    }
+  };
+
+  oaiWs.on("open", () => {
+    console.log("[oaiWs] open", { sessionId });
+
     sendToOAI({
       type: "session.update",
       session: {
@@ -334,19 +328,18 @@ wss.on("connection", (twilioWs, req) => {
         input_audio_transcription: { model: "whisper-1", language: "en" },
         instructions:
           "You are Nema, a warm, concise sales assistant.\n" +
-          "You may receive graph_context with facts/actions.\n" +
-          "If graph_context.facts is empty or confidence is low, ask 1 short clarifying question.\n" +
-          "Keep responses short (1–2 sentences).\n",
+          "You will receive JSON with {user_question, graph_context}.\n" +
+          "If graph_context.facts is non-empty, answer using ONLY those facts.\n" +
+          "If empty, ask ONE clarifying question.\n" +
+          "Keep responses 1–2 sentences.\n",
       },
     });
 
     oaiReady = true;
 
-    const biz = await getBusinessName(sessionId);
+    // Greeting
     const greeting =
-      `Hi, this is Nema. Welcome to ${biz}. ` +
-      "I can help you explore our products and assist you with orders or questions.";
-
+      "Hi, this is Nema. Welcome. I can help you with questions or place an order.";
     sendToOAI({
       type: "conversation.item.create",
       item: {
@@ -362,23 +355,39 @@ wss.on("connection", (twilioWs, req) => {
     const msg = safeJsonParse(raw.toString());
     if (!msg?.type) return;
 
+    // audio deltas from OpenAI -> Twilio
     if (
       (msg.type === "response.audio.delta" || msg.type === "response.output_audio.delta") &&
       msg.delta
     ) {
-      if (streamSid) {
-        sendToTwilio({ event: "media", streamSid, media: { payload: msg.delta } });
+      audioFrames++;
+      if (audioFrames % 50 === 0) console.log("[audio] frames:", audioFrames);
+
+      if (!streamSid) {
+        pendingAudio.push(msg.delta);
+        if (pendingAudio.length > MAX_PENDING_AUDIO) pendingAudio.shift();
+        return;
       }
+
+      sendToTwilio({ event: "media", streamSid, media: { payload: msg.delta } });
       return;
     }
 
+    // transcription done
     if (msg.type === "conversation.item.input_audio_transcription.completed") {
       const transcript = (msg.transcript || "").trim();
       if (!transcript) return;
 
-      postSessionMessage(sessionId, "customer", transcript).catch(() => {});
+      console.log("[whisper] transcript:", transcript);
 
+      postSessionMessage(sessionId, "customer", transcript).catch(() => {});
       const ctx = await getGraphContext(transcript, sessionId);
+
+      console.log("[ctx->model]", {
+        factsLen: Array.isArray(ctx?.facts) ? ctx.facts.length : 0,
+        confidence: ctx?.confidence,
+        reason: ctx?.reason,
+      });
 
       sendToOAI({
         type: "conversation.item.create",
@@ -388,18 +397,12 @@ wss.on("connection", (twilioWs, req) => {
           content: [
             {
               type: "input_text",
-              text: JSON.stringify({
-                user_question: transcript,
-                graph_context: ctx,
-                max_sentences: 2,
-              }),
+              text: JSON.stringify({ user_question: transcript, graph_context: ctx, max_sentences: 2 }),
             },
           ],
         },
       });
-
       sendToOAI({ type: "response.create", response: { modalities: ["audio", "text"] } });
-      return;
     }
   });
 
@@ -413,8 +416,12 @@ wss.on("connection", (twilioWs, req) => {
     if (msg.event === "start") {
       streamSid = msg.start?.streamSid || null;
       const cp = msg.start?.customParameters || {};
+      console.log("[twilioWs] start raw cp:", cp);
       if (cp.sessionId) sessionId = cp.sessionId;
       console.log("[twilioWs] start:", streamSid, "sessionId:", sessionId);
+
+      // flush any audio produced before streamSid existed
+      flushPendingAudio();
       return;
     }
 
@@ -443,63 +450,13 @@ wss.on("connection", (twilioWs, req) => {
   });
 });
 
-// ------------ Legacy /gather path (kept) ------------
-
-app.post("/gather", async (req, res) => {
-  const twiml = new twilio.twiml.VoiceResponse();
-
-  const sessionId = req.query.sessionId || req.body.sessionId || "default";
-  const speechResult = (req.body.SpeechResult || "").trim();
-
-  if (!sessionId || !String(sessionId).includes(":")) {
-    console.error("[/gather] invalid sessionId", sessionId);
-    twiml.say({ voice: "Polly.Joanna", language: "en-US" }, "Sorry, something went wrong with this call.");
-    res.type("text/xml");
-    return res.send(twiml.toString());
-  }
-
-  if (!speechResult) {
-    twiml.say({ voice: "Polly.Joanna", language: "en-US" }, "I didn't catch that. Let's try again.");
-    twiml.redirect(`/voice?sessionId=${encodeURIComponent(sessionId)}`);
-    res.type("text/xml");
-    return res.send(twiml.toString());
-  }
-
-  await postSessionMessage(sessionId, "customer", speechResult);
-
-  const agentResp = await Promise.race([
-    callNemaAgent(sessionId, speechResult),
-    new Promise((resolve) => setTimeout(() => resolve({ reply: "Let me check that for you…", action: "NONE" }), 8000)),
-  ]);
-
-  const replyText = (agentResp.reply && agentResp.reply.trim()) || "I'm not sure how to answer that yet.";
-
-  await postSessionMessage(sessionId, "agent", replyText);
-  await buildGraph(sessionId);
-
-  twiml.say({ voice: "Polly.Joanna", language: "en-US" }, replyText);
-
-  const gather = twiml.gather({
-    input: "speech",
-    action: `/gather?sessionId=${encodeURIComponent(sessionId)}`,
-    method: "POST",
-    speechTimeout: "auto",
-  });
-  gather.say({ voice: "Polly.Joanna", language: "en-US" }, "What else would you like to know?");
-
-  res.type("text/xml");
-  res.send(twiml.toString());
-});
-
-// ------------ Health check ------------
-
-app.get("/", (req, res) => {
-  res.send("Twilio ↔ Nema phone orchestrator (Realtime) is running.");
-});
+// ---------- Basic home page ----------
+app.get("/", (req, res) => res.send("Twilio ↔ Nema phone orchestrator (Realtime) is running."));
 
 server.listen(PORT, "0.0.0.0", () => {
   const wsBase = PUBLIC_BASE_URL ? PUBLIC_BASE_URL.replace(/^https:\/\//, "wss://") : "(unset)";
   console.log(`Twilio-Nema orchestrator listening on port ${PORT}`);
+  console.log(`Health: ${PUBLIC_BASE_URL}/health`);
   console.log(`Media Streams WS path: ${wsBase}/media-stream`);
   console.log(`PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}`);
   console.log(`BACKEND_BASE_URL: ${BACKEND_BASE_URL}`);
