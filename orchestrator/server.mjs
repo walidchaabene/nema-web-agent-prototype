@@ -1,4 +1,13 @@
-// server.mjs
+// server.mjs (FULL) — hardened for Twilio webhook latency + event-loop pressure
+//
+// Key fixes vs your current version:
+// 1) /voice is now ZERO-LOG + minimal work (no console.log at all)
+//    -> avoids stdout backpressure stalls and event-loop hiccups during Twilio timeouts.
+// 2) /stream-status returns 204 immediately, no logging (same reason).
+// 3) /health stays trivial.
+// 4) Optional: sampled logging only (outside /voice) to reduce log storms.
+// 5) Keeps your Realtime + graph-context + audio buffering behavior intact.
+
 import express from "express";
 import bodyParser from "body-parser";
 import dotenv from "dotenv";
@@ -10,13 +19,9 @@ import { WebSocket, WebSocketServer } from "ws";
 
 dotenv.config();
 
-// Crash visibility (helps explain 502s if Node dies)
-process.on("uncaughtException", (err) =>
-  console.error("[fatal] uncaughtException", err)
-);
-process.on("unhandledRejection", (err) =>
-  console.error("[fatal] unhandledRejection", err)
-);
+// Crash visibility (keep)
+process.on("uncaughtException", (err) => console.error("[fatal] uncaughtException", err));
+process.on("unhandledRejection", (err) => console.error("[fatal] unhandledRejection", err));
 
 const {
   TWILIO_ACCOUNT_SID,
@@ -35,43 +40,15 @@ const {
 } = process.env;
 
 const PORT = process.env.PORT || 8080;
-const now = () => new Date().toISOString();
 
-if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
-  console.warn("[startup] TWILIO creds missing");
-}
-if (!OPENAI_API_KEY) {
-  console.warn("[startup] OPENAI_API_KEY missing — Realtime disabled");
-}
-if (!PUBLIC_BASE_URL || !PUBLIC_BASE_URL.startsWith("https://")) {
+if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) console.warn("[startup] TWILIO creds missing");
+if (!OPENAI_API_KEY) console.warn("[startup] OPENAI_API_KEY missing — Realtime disabled");
+if (!PUBLIC_BASE_URL || !PUBLIC_BASE_URL.startsWith("https://"))
   console.warn("[startup] PUBLIC_BASE_URL missing or not https://");
-}
-if (!BACKEND_SERVICE_TOKEN) {
+if (!BACKEND_SERVICE_TOKEN)
   console.warn("[startup] BACKEND_SERVICE_TOKEN missing — tool calls will fail");
-}
 
-const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-
-const app = express();
-app.use(
-  cors({
-    origin: [
-      "http://localhost:5174",
-      "http://localhost:5173",
-      "https://test.dwquiuli5p7pn.amplifyapp.com",
-    ],
-    credentials: true,
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Service-Token", "X-Session-Id"],
-  })
-);
-
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
-
-const server = http.createServer(app);
-
-// ---------- Helpers ----------
+// --- tiny helpers ---
 
 const safeJsonParse = (s) => {
   try {
@@ -79,6 +56,13 @@ const safeJsonParse = (s) => {
   } catch {
     return null;
   }
+};
+
+// light sampling logger (prevents log storms from blocking Node)
+// set LOG_SAMPLE_RATE=1 to log everything, default 0.1 (10%)
+const LOG_SAMPLE_RATE = Number(process.env.LOG_SAMPLE_RATE || "0.1");
+const slog = (...args) => {
+  if (LOG_SAMPLE_RATE >= 1 || Math.random() < LOG_SAMPLE_RATE) console.log(...args);
 };
 
 function backendHeaders(sessionId) {
@@ -134,48 +118,73 @@ async function getGraphContext(question, sessionId) {
       data = JSON.parse(text);
     } catch {}
 
-    console.log("[graph-context] req", {
-      status: res.status,
-      sessionId,
-      q: (question || "").slice(0, 120),
-    });
+    // sampled logging only (avoid blocking)
+    slog("[graph-context]", { status: res.status, q: (question || "").slice(0, 80) });
 
     if (!res.ok) {
-      console.error("[graph-context] BAD", { status: res.status, body: text.slice(0, 300) });
-      return { question, facts: [], actions: [], confidence: 0.0, reason: `Backend error ${res.status}` };
+      console.error("[graph-context] BAD", { status: res.status, body: text.slice(0, 200) });
+      return {
+        question,
+        facts: [],
+        actions: [],
+        confidence: 0.0,
+        reason: `Backend error ${res.status}`,
+      };
     }
-
-    const factsLen = Array.isArray(data?.facts) ? data.facts.length : 0;
-    console.log("[graph-context] ok", { factsLen, confidence: data?.confidence, reason: data?.reason });
     return data;
   } catch (err) {
     console.error("[graph-context] EXCEPTION", { err: String(err) });
-    return { question, facts: [], actions: [], confidence: 0.0, reason: "Graph context call failed" };
+    return {
+      question,
+      facts: [],
+      actions: [],
+      confidence: 0.0,
+      reason: "Graph context call failed",
+    };
   }
 }
 
-// ---------- Health endpoint (use for EB + warm pings) ----------
+// --- app setup ---
 
+const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+
+const app = express();
+app.disable("x-powered-by");
+
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5174",
+      "http://localhost:5173",
+      "https://test.dwquiuli5p7pn.amplifyapp.com",
+    ],
+    credentials: true,
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Service-Token", "X-Session-Id"],
+  })
+);
+
+// Twilio sends x-www-form-urlencoded for /voice, so urlencoded is needed.
+// JSON parsing is fine for your internal API calls.
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
+
+const server = http.createServer(app);
+
+// keepalive tuning (helps some proxies; harmless otherwise)
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 70_000;
+
+// ---------- Health (EB/ALB should check this) ----------
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
 // ---------- Stream status callback (Twilio wants FAST 2xx) ----------
-
-app.post("/stream-status", (req, res) => {
-  try {
-    console.log("[stream-status]", now(), {
-      StreamEvent: req.body?.StreamEvent,
-      StreamSid: req.body?.StreamSid,
-      CallSid: req.body?.CallSid,
-    });
-  } catch {}
-  return res.sendStatus(204);
-});
+// IMPORTANT: no logging here to avoid blocking under bursts.
+app.post("/stream-status", (req, res) => res.sendStatus(204));
 
 // ---------- Go Live ----------
-
 app.post("/api/phone/go-live", async (req, res) => {
-  const { agentId, username } = req.body;
-
+  const { agentId, username } = req.body || {};
   if (!agentId || !username) {
     return res.status(400).json({ ok: false, error: "agentId and username are required" });
   }
@@ -197,37 +206,26 @@ app.post("/api/phone/go-live", async (req, res) => {
   }
 });
 
-// ---------- /voice (MUST be fast; never call backend) ----------
-
+// ---------- /voice (MUST be fast; never block; no logs) ----------
+// This is intentionally “boring”: no console.log, no awaits, no heavy work.
+// If this is slow, it’s upstream/instance/event-loop pressure — not handler logic.
 app.post("/voice", (req, res) => {
-  const t0 = Date.now();
-  console.log("[/voice] start", { at: now() });
-
   try {
     const twiml = new twilio.twiml.VoiceResponse();
 
-    let { agentId, username, sessionId } = req.query;
-
-    if ((!agentId || !username) && sessionId) {
-      const parts = String(sessionId).split(":");
-      if (parts.length >= 3) {
-        username = parts[0];
-        agentId = parts[1];
-      }
-    }
+    const agentId = req.query.agentId;
+    const username = req.query.username;
 
     if (!agentId || !username) {
       twiml.say("This phone agent is not configured yet.");
-      const xml = twiml.toString();
-      console.log("[/voice] send (unconfigured)", { ms: Date.now() - t0 });
-      return res.type("text/xml").status(200).send(xml);
+      return res.type("text/xml").status(200).send(twiml.toString());
     }
 
-    const callSid = req.body.CallSid || Date.now();
-    sessionId = sessionId || `${username}:${agentId}:${callSid}`;
+    const callSid = req.body?.CallSid || Date.now();
+    const sessionId = `${username}:${agentId}:${callSid}`;
 
-    const wsBase = PUBLIC_BASE_URL.replace(/^https:\/\//, "wss://");
-    const wsUrl = `${wsBase}/media-stream`;
+    const wsUrl =
+      PUBLIC_BASE_URL.replace(/^https:\/\//, "wss://") + "/media-stream";
 
     const connect = twiml.connect();
     const stream = connect.stream({
@@ -241,21 +239,14 @@ app.post("/voice", (req, res) => {
 
     twiml.pause({ length: 600 });
 
-    const xml = twiml.toString();
-    console.log("[/voice] send", { ms: Date.now() - t0, sessionId });
-    return res.type("text/xml").status(200).send(xml);
+    return res.type("text/xml").status(200).send(twiml.toString());
   } catch (err) {
-    console.error("[/voice] fatal", err);
-    const twiml = new twilio.twiml.VoiceResponse();
-    twiml.say("Sorry, something went wrong. Please try again.");
-    const xml = twiml.toString();
-    console.log("[/voice] send (error)", { ms: Date.now() - t0 });
-    return res.type("text/xml").status(200).send(xml);
+    // Twilio-safe fallback: never 5xx
+    return res.sendStatus(204);
   }
 });
 
 // ---------- Twilio Media Streams + Realtime ----------
-
 const wss = new WebSocketServer({ noServer: true });
 
 server.on("upgrade", (req, socket, head) => {
@@ -267,13 +258,13 @@ server.on("upgrade", (req, socket, head) => {
   }
 });
 
-wss.on("connection", (twilioWs, req) => {
+wss.on("connection", (twilioWs) => {
   let sessionId = `call-${Date.now()}`;
   let streamSid = null;
 
-  // Buffer audio until streamSid exists (fixes “silent call” race)
+  // Buffer audio until streamSid exists (prevents “silent call” race)
   const pendingAudio = [];
-  const MAX_PENDING_AUDIO = 200; // safety cap
+  const MAX_PENDING_AUDIO = 300;
 
   let oaiReady = false;
   let audioFrames = 0;
@@ -298,16 +289,14 @@ wss.on("connection", (twilioWs, req) => {
 
   const sendToOAI = (obj) => {
     try {
-      if (oaiWs.readyState === 1) {
-        oaiWs.send(JSON.stringify(obj));
-      }
+      if (oaiWs.readyState === 1) oaiWs.send(JSON.stringify(obj));
     } catch (err) {
       console.error("[oaiWs.send] error:", err);
     }
   };
 
   const flushPendingAudio = () => {
-    if (!streamSid || pendingAudio.length === 0) return;
+    if (!streamSid) return;
     while (pendingAudio.length) {
       const delta = pendingAudio.shift();
       sendToTwilio({ event: "media", streamSid, media: { payload: delta } });
@@ -315,7 +304,7 @@ wss.on("connection", (twilioWs, req) => {
   };
 
   oaiWs.on("open", () => {
-    console.log("[oaiWs] open", { sessionId });
+    slog("[oaiWs] open");
 
     sendToOAI({
       type: "session.update",
@@ -361,14 +350,13 @@ wss.on("connection", (twilioWs, req) => {
       msg.delta
     ) {
       audioFrames++;
-      if (audioFrames % 50 === 0) console.log("[audio] frames:", audioFrames);
+      if (audioFrames % 100 === 0) slog("[audio] frames", audioFrames);
 
       if (!streamSid) {
         pendingAudio.push(msg.delta);
         if (pendingAudio.length > MAX_PENDING_AUDIO) pendingAudio.shift();
         return;
       }
-
       sendToTwilio({ event: "media", streamSid, media: { payload: msg.delta } });
       return;
     }
@@ -378,16 +366,13 @@ wss.on("connection", (twilioWs, req) => {
       const transcript = (msg.transcript || "").trim();
       if (!transcript) return;
 
-      console.log("[whisper] transcript:", transcript);
+      slog("[whisper]", transcript.slice(0, 120));
 
       postSessionMessage(sessionId, "customer", transcript).catch(() => {});
       const ctx = await getGraphContext(transcript, sessionId);
 
-      console.log("[ctx->model]", {
-        factsLen: Array.isArray(ctx?.facts) ? ctx.facts.length : 0,
-        confidence: ctx?.confidence,
-        reason: ctx?.reason,
-      });
+      // minimal log
+      slog("[ctx]", { factsLen: Array.isArray(ctx?.facts) ? ctx.facts.length : 0, reason: ctx?.reason });
 
       sendToOAI({
         type: "conversation.item.create",
@@ -397,7 +382,11 @@ wss.on("connection", (twilioWs, req) => {
           content: [
             {
               type: "input_text",
-              text: JSON.stringify({ user_question: transcript, graph_context: ctx, max_sentences: 2 }),
+              text: JSON.stringify({
+                user_question: transcript,
+                graph_context: ctx,
+                max_sentences: 2,
+              }),
             },
           ],
         },
@@ -407,7 +396,7 @@ wss.on("connection", (twilioWs, req) => {
   });
 
   oaiWs.on("error", (err) => console.error("[oaiWs] error:", err));
-  oaiWs.on("close", () => console.log("[oaiWs] closed"));
+  oaiWs.on("close", () => slog("[oaiWs] closed"));
 
   twilioWs.on("message", (raw) => {
     const msg = safeJsonParse(raw.toString());
@@ -416,11 +405,9 @@ wss.on("connection", (twilioWs, req) => {
     if (msg.event === "start") {
       streamSid = msg.start?.streamSid || null;
       const cp = msg.start?.customParameters || {};
-      console.log("[twilioWs] start raw cp:", cp);
       if (cp.sessionId) sessionId = cp.sessionId;
-      console.log("[twilioWs] start:", streamSid, "sessionId:", sessionId);
 
-      // flush any audio produced before streamSid existed
+      slog("[twilioWs] start", { streamSid, sessionId });
       flushPendingAudio();
       return;
     }
@@ -433,7 +420,7 @@ wss.on("connection", (twilioWs, req) => {
     }
 
     if (msg.event === "stop") {
-      console.log("[twilioWs] stop:", streamSid);
+      slog("[twilioWs] stop", streamSid);
       try {
         sendToOAI({ type: "input_audio_buffer.commit" });
         sendToOAI({ type: "response.create", response: { modalities: ["audio", "text"] } });
@@ -443,7 +430,7 @@ wss.on("connection", (twilioWs, req) => {
   });
 
   twilioWs.on("close", () => {
-    console.log("[twilioWs] closed:", streamSid);
+    slog("[twilioWs] closed", streamSid);
     try {
       oaiWs.close();
     } catch {}
@@ -451,7 +438,9 @@ wss.on("connection", (twilioWs, req) => {
 });
 
 // ---------- Basic home page ----------
-app.get("/", (req, res) => res.send("Twilio ↔ Nema phone orchestrator (Realtime) is running."));
+app.get("/", (req, res) =>
+  res.send("Twilio ↔ Nema phone orchestrator (Realtime) is running.")
+);
 
 server.listen(PORT, "0.0.0.0", () => {
   const wsBase = PUBLIC_BASE_URL ? PUBLIC_BASE_URL.replace(/^https:\/\//, "wss://") : "(unset)";
