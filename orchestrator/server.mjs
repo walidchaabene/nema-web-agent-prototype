@@ -1,12 +1,15 @@
-// server.mjs (FULL) — hardened for Twilio webhook latency + event-loop pressure
+// server.mjs (FULL) — Stable Twilio + Media Streams + Realtime
 //
-// Key fixes vs your current version:
-// 1) /voice is now ZERO-LOG + minimal work (no console.log at all)
-//    -> avoids stdout backpressure stalls and event-loop hiccups during Twilio timeouts.
-// 2) /stream-status returns 204 immediately, no logging (same reason).
-// 3) /health stays trivial.
-// 4) Optional: sampled logging only (outside /voice) to reduce log storms.
-// 5) Keeps your Realtime + graph-context + audio buffering behavior intact.
+// Includes ALL fixes we agreed on:
+// ✅ /voice: ultra-fast, no logging, no awaits, Twilio-safe (never 5xx)
+// ✅ /stream-status: 204 immediately (no logging)
+// ✅ /health: fast
+// ✅ Reduced log pressure everywhere else via sampled logger
+// ✅ Media stream: audio buffering until streamSid exists
+// ✅ Media stream: PRIMING AUDIO FRAME immediately on Twilio "start" (prevents silent calls)
+// ✅ Realtime: turn_detection create_response: true (more reliable)
+// ✅ Realtime: greeting + failsafe response.create if no audio deltas within 1.5s
+// ✅ Counters + call summary: twilioMediaFrames + oaiAudioFrames (debug silent calls quickly)
 
 import express from "express";
 import bodyParser from "body-parser";
@@ -19,9 +22,13 @@ import { WebSocket, WebSocketServer } from "ws";
 
 dotenv.config();
 
-// Crash visibility (keep)
-process.on("uncaughtException", (err) => console.error("[fatal] uncaughtException", err));
-process.on("unhandledRejection", (err) => console.error("[fatal] unhandledRejection", err));
+// Crash visibility
+process.on("uncaughtException", (err) =>
+  console.error("[fatal] uncaughtException", err)
+);
+process.on("unhandledRejection", (err) =>
+  console.error("[fatal] unhandledRejection", err)
+);
 
 const {
   TWILIO_ACCOUNT_SID,
@@ -48,8 +55,7 @@ if (!PUBLIC_BASE_URL || !PUBLIC_BASE_URL.startsWith("https://"))
 if (!BACKEND_SERVICE_TOKEN)
   console.warn("[startup] BACKEND_SERVICE_TOKEN missing — tool calls will fail");
 
-// --- tiny helpers ---
-
+// ---------- small helpers ----------
 const safeJsonParse = (s) => {
   try {
     return JSON.parse(s);
@@ -58,9 +64,8 @@ const safeJsonParse = (s) => {
   }
 };
 
-// light sampling logger (prevents log storms from blocking Node)
-// set LOG_SAMPLE_RATE=1 to log everything, default 0.1 (10%)
-const LOG_SAMPLE_RATE = Number(process.env.LOG_SAMPLE_RATE || "0.1");
+// sampled logger to avoid stdout backpressure stalls
+const LOG_SAMPLE_RATE = Number(process.env.LOG_SAMPLE_RATE || "0.1"); // 10% default
 const slog = (...args) => {
   if (LOG_SAMPLE_RATE >= 1 || Math.random() < LOG_SAMPLE_RATE) console.log(...args);
 };
@@ -118,34 +123,22 @@ async function getGraphContext(question, sessionId) {
       data = JSON.parse(text);
     } catch {}
 
-    // sampled logging only (avoid blocking)
+    // keep logs light
     slog("[graph-context]", { status: res.status, q: (question || "").slice(0, 80) });
 
     if (!res.ok) {
       console.error("[graph-context] BAD", { status: res.status, body: text.slice(0, 200) });
-      return {
-        question,
-        facts: [],
-        actions: [],
-        confidence: 0.0,
-        reason: `Backend error ${res.status}`,
-      };
+      return { question, facts: [], actions: [], confidence: 0.0, reason: `Backend error ${res.status}` };
     }
+
     return data;
   } catch (err) {
     console.error("[graph-context] EXCEPTION", { err: String(err) });
-    return {
-      question,
-      facts: [],
-      actions: [],
-      confidence: 0.0,
-      reason: "Graph context call failed",
-    };
+    return { question, facts: [], actions: [], confidence: 0.0, reason: "Graph context call failed" };
   }
 }
 
-// --- app setup ---
-
+// ---------- app ----------
 const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
 
 const app = express();
@@ -164,22 +157,19 @@ app.use(
   })
 );
 
-// Twilio sends x-www-form-urlencoded for /voice, so urlencoded is needed.
-// JSON parsing is fine for your internal API calls.
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false })); // Twilio /voice
+app.use(bodyParser.json()); // internal
 
 const server = http.createServer(app);
 
-// keepalive tuning (helps some proxies; harmless otherwise)
+// keepalive tuning (harmless, sometimes helps)
 server.keepAliveTimeout = 65_000;
 server.headersTimeout = 70_000;
 
-// ---------- Health (EB/ALB should check this) ----------
+// ---------- Health ----------
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
 // ---------- Stream status callback (Twilio wants FAST 2xx) ----------
-// IMPORTANT: no logging here to avoid blocking under bursts.
 app.post("/stream-status", (req, res) => res.sendStatus(204));
 
 // ---------- Go Live ----------
@@ -206,13 +196,10 @@ app.post("/api/phone/go-live", async (req, res) => {
   }
 });
 
-// ---------- /voice (MUST be fast; never block; no logs) ----------
-// This is intentionally “boring”: no console.log, no awaits, no heavy work.
-// If this is slow, it’s upstream/instance/event-loop pressure — not handler logic.
+// ---------- /voice (ultra-fast, no logs, no awaits) ----------
 app.post("/voice", (req, res) => {
   try {
     const twiml = new twilio.twiml.VoiceResponse();
-
     const agentId = req.query.agentId;
     const username = req.query.username;
 
@@ -224,13 +211,12 @@ app.post("/voice", (req, res) => {
     const callSid = req.body?.CallSid || Date.now();
     const sessionId = `${username}:${agentId}:${callSid}`;
 
-    const wsUrl =
-      PUBLIC_BASE_URL.replace(/^https:\/\//, "wss://") + "/media-stream";
+    const wsUrl = PUBLIC_BASE_URL.replace(/^https:\/\//, "wss://") + "/media-stream";
 
     const connect = twiml.connect();
     const stream = connect.stream({
       url: wsUrl,
-      track: "inbound_track",
+      track: "inbound_track", // keep as-is; change to both_tracks only if you suspect no inbound media
       statusCallback: `${PUBLIC_BASE_URL}/stream-status`,
       statusCallbackMethod: "POST",
     });
@@ -240,13 +226,13 @@ app.post("/voice", (req, res) => {
     twiml.pause({ length: 600 });
 
     return res.type("text/xml").status(200).send(twiml.toString());
-  } catch (err) {
+  } catch {
     // Twilio-safe fallback: never 5xx
     return res.sendStatus(204);
   }
 });
 
-// ---------- Twilio Media Streams + Realtime ----------
+// ---------- Media Streams WS ----------
 const wss = new WebSocketServer({ noServer: true });
 
 server.on("upgrade", (req, socket, head) => {
@@ -258,16 +244,23 @@ server.on("upgrade", (req, socket, head) => {
   }
 });
 
+// A small base64 μ-law "silence" chunk to prime Twilio playback.
+// (Any short payload works; this is a common safe pattern.)
+const PRIME_ULAW_SILENCE_B64 = "////////////////////////////////////////////////////////////////";
+
 wss.on("connection", (twilioWs) => {
   let sessionId = `call-${Date.now()}`;
   let streamSid = null;
 
-  // Buffer audio until streamSid exists (prevents “silent call” race)
+  // Counters to debug silence
+  let twilioMediaFrames = 0;
+  let oaiAudioFrames = 0;
+
+  // Buffer audio until streamSid exists
   const pendingAudio = [];
   const MAX_PENDING_AUDIO = 300;
 
   let oaiReady = false;
-  let audioFrames = 0;
 
   const sendToTwilio = (obj) => {
     try {
@@ -303,9 +296,21 @@ wss.on("connection", (twilioWs) => {
     }
   };
 
-  oaiWs.on("open", () => {
-    slog("[oaiWs] open");
+  const callSummary = (label) => {
+    slog("[call-summary]", {
+      label,
+      sessionId,
+      streamSid,
+      twilioMediaFrames,
+      oaiAudioFrames,
+    });
+  };
 
+  // ---- OpenAI Realtime wiring ----
+  oaiWs.on("open", () => {
+    slog("[oaiWs] open", { sessionId });
+
+    // Make responses more automatic/reliable
     sendToOAI({
       type: "session.update",
       session: {
@@ -313,7 +318,7 @@ wss.on("connection", (twilioWs) => {
         voice: OPENAI_VOICE,
         input_audio_format: "g711_ulaw",
         output_audio_format: "g711_ulaw",
-        turn_detection: { type: "server_vad", create_response: false },
+        turn_detection: { type: "server_vad", create_response: true }, // FIX
         input_audio_transcription: { model: "whisper-1", language: "en" },
         instructions:
           "You are Nema, a warm, concise sales assistant.\n" +
@@ -329,6 +334,7 @@ wss.on("connection", (twilioWs) => {
     // Greeting
     const greeting =
       "Hi, this is Nema. Welcome. I can help you with questions or place an order.";
+
     sendToOAI({
       type: "conversation.item.create",
       item: {
@@ -337,31 +343,42 @@ wss.on("connection", (twilioWs) => {
         content: [{ type: "input_text", text: `Say this greeting verbatim:\n${greeting}` }],
       },
     });
+
+    // explicit create (still fine even with create_response: true)
     sendToOAI({ type: "response.create", response: { modalities: ["audio", "text"] } });
+
+    // FAILSAFE: if no audio after 1.5s, force another response.create
+    setTimeout(() => {
+      if (oaiAudioFrames === 0 && oaiWs.readyState === 1) {
+        console.warn("[failsafe] no audio yet, forcing response.create()");
+        sendToOAI({ type: "response.create", response: { modalities: ["audio", "text"] } });
+      }
+    }, 1500);
   });
 
   oaiWs.on("message", async (raw) => {
     const msg = safeJsonParse(raw.toString());
     if (!msg?.type) return;
 
-    // audio deltas from OpenAI -> Twilio
+    // OpenAI -> Twilio audio
     if (
       (msg.type === "response.audio.delta" || msg.type === "response.output_audio.delta") &&
       msg.delta
     ) {
-      audioFrames++;
-      if (audioFrames % 100 === 0) slog("[audio] frames", audioFrames);
+      oaiAudioFrames++;
+      if (oaiAudioFrames % 50 === 0) slog("[oai] audio frames", oaiAudioFrames);
 
       if (!streamSid) {
         pendingAudio.push(msg.delta);
         if (pendingAudio.length > MAX_PENDING_AUDIO) pendingAudio.shift();
         return;
       }
+
       sendToTwilio({ event: "media", streamSid, media: { payload: msg.delta } });
       return;
     }
 
-    // transcription done
+    // Whisper transcription done
     if (msg.type === "conversation.item.input_audio_transcription.completed") {
       const transcript = (msg.transcript || "").trim();
       if (!transcript) return;
@@ -371,8 +388,10 @@ wss.on("connection", (twilioWs) => {
       postSessionMessage(sessionId, "customer", transcript).catch(() => {});
       const ctx = await getGraphContext(transcript, sessionId);
 
-      // minimal log
-      slog("[ctx]", { factsLen: Array.isArray(ctx?.facts) ? ctx.facts.length : 0, reason: ctx?.reason });
+      slog("[ctx]", {
+        factsLen: Array.isArray(ctx?.facts) ? ctx.facts.length : 0,
+        reason: ctx?.reason,
+      });
 
       sendToOAI({
         type: "conversation.item.create",
@@ -382,22 +401,23 @@ wss.on("connection", (twilioWs) => {
           content: [
             {
               type: "input_text",
-              text: JSON.stringify({
-                user_question: transcript,
-                graph_context: ctx,
-                max_sentences: 2,
-              }),
+              text: JSON.stringify({ user_question: transcript, graph_context: ctx, max_sentences: 2 }),
             },
           ],
         },
       });
+
       sendToOAI({ type: "response.create", response: { modalities: ["audio", "text"] } });
+      return;
     }
   });
 
   oaiWs.on("error", (err) => console.error("[oaiWs] error:", err));
-  oaiWs.on("close", () => slog("[oaiWs] closed"));
+  oaiWs.on("close", () => {
+    slog("[oaiWs] closed");
+  });
 
+  // ---- Twilio WS wiring ----
   twilioWs.on("message", (raw) => {
     const msg = safeJsonParse(raw.toString());
     if (!msg?.event) return;
@@ -408,6 +428,17 @@ wss.on("connection", (twilioWs) => {
       if (cp.sessionId) sessionId = cp.sessionId;
 
       slog("[twilioWs] start", { streamSid, sessionId });
+
+      // PRIME: send a tiny silence chunk immediately so Twilio pipeline is "hot"
+      if (streamSid) {
+        sendToTwilio({
+          event: "media",
+          streamSid,
+          media: { payload: PRIME_ULAW_SILENCE_B64 },
+        });
+      }
+
+      // flush any OpenAI audio that arrived before start
       flushPendingAudio();
       return;
     }
@@ -415,12 +446,18 @@ wss.on("connection", (twilioWs) => {
     if (msg.event === "media") {
       const payload = msg.media?.payload;
       if (!payload || !oaiReady) return;
+
+      twilioMediaFrames++;
+      if (twilioMediaFrames % 50 === 0) slog("[twilio] media frames", twilioMediaFrames);
+
       sendToOAI({ type: "input_audio_buffer.append", audio: payload });
       return;
     }
 
     if (msg.event === "stop") {
       slog("[twilioWs] stop", streamSid);
+      callSummary("stop");
+
       try {
         sendToOAI({ type: "input_audio_buffer.commit" });
         sendToOAI({ type: "response.create", response: { modalities: ["audio", "text"] } });
@@ -430,7 +467,7 @@ wss.on("connection", (twilioWs) => {
   });
 
   twilioWs.on("close", () => {
-    slog("[twilioWs] closed", streamSid);
+    callSummary("close");
     try {
       oaiWs.close();
     } catch {}
@@ -438,9 +475,7 @@ wss.on("connection", (twilioWs) => {
 });
 
 // ---------- Basic home page ----------
-app.get("/", (req, res) =>
-  res.send("Twilio ↔ Nema phone orchestrator (Realtime) is running.")
-);
+app.get("/", (req, res) => res.send("Twilio ↔ Nema phone orchestrator (Realtime) is running."));
 
 server.listen(PORT, "0.0.0.0", () => {
   const wsBase = PUBLIC_BASE_URL ? PUBLIC_BASE_URL.replace(/^https:\/\//, "wss://") : "(unset)";
