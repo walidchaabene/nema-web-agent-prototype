@@ -310,7 +310,7 @@ wss.on("connection", (twilioWs) => {
     const overview = profile?.overview || "We create and deliver fresh flower arrangements.";
 
     const greeting =
-      `Hi, this is Nema calling from ${bizName}. ` +
+      `Hi, this is Neema from ${bizName}. ` +
       `${overview} How can I help you today?`;
 
     sendToOAI({
