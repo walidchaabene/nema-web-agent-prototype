@@ -167,6 +167,75 @@ server.headersTimeout = 70_000;
 app.get("/health", (req, res) => res.status(200).send("ok"));
 app.post("/stream-status", (req, res) => res.sendStatus(204));
 
+
+app.post("/api/phone/go-live-buy", async (req, res) => {
+  const { agentId, username } = req.body || {};
+
+  if (!agentId || !username) {
+    return res.status(400).json({
+      ok: false,
+      error: "agentId and username are required",
+    });
+  }
+
+  if (!PUBLIC_BASE_URL || !PUBLIC_BASE_URL.startsWith("https://")) {
+    return res.status(500).json({
+      ok: false,
+      error: "PUBLIC_BASE_URL must be https",
+    });
+  }
+
+  const voiceUrl =
+    `${PUBLIC_BASE_URL}/voice` +
+    `?agentId=${encodeURIComponent(agentId)}` +
+    `&username=${encodeURIComponent(username)}`;
+
+  try {
+    /* --------------------------------------------------
+       1️⃣ Find an available US number (voice + sms)
+    -------------------------------------------------- */
+    const available = await twilioClient
+      .availablePhoneNumbers("US")
+      .local.list({
+        smsEnabled: true,
+        voiceEnabled: true,
+        limit: 1,
+      });
+
+    if (!available.length) {
+      return res.status(409).json({
+        ok: false,
+        error: "No available US phone numbers found",
+      });
+    }
+
+    const phoneNumber = available[0].phoneNumber;
+
+    /* --------------------------------------------------
+       2️⃣ Buy number + set webhook
+    -------------------------------------------------- */
+    const incoming = await twilioClient.incomingPhoneNumbers.create({
+      phoneNumber,
+      voiceUrl,
+      voiceMethod: "POST",
+    });
+
+    return res.json({
+      ok: true,
+      phoneNumber: incoming.phoneNumber,
+      phoneNumberSid: incoming.sid,
+      reused: false,
+    });
+  } catch (err) {
+    console.error("[go-live] failed to provision number:", err);
+
+    return res.status(500).json({
+      ok: false,
+      error: "Failed to provision Twilio number",
+    });
+  }
+});
+
 app.post("/api/phone/go-live", async (req, res) => {
   const { agentId, username } = req.body || {};
   if (!agentId || !username) {
