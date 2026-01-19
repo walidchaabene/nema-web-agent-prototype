@@ -235,7 +235,7 @@ app.post("/api/phone/go-live-buy", async (req, res) => {
     });
   }
 });
-
+const TWILIO_NUMBER_SID_TEST = "PN301d56f588a077afc219e558eefaa4f3";
 app.post("/api/phone/go-live", async (req, res) => {
   const { agentId, username } = req.body || {};
   if (!agentId || !username) {
@@ -249,7 +249,7 @@ app.post("/api/phone/go-live", async (req, res) => {
 
   try {
     const incoming = await twilioClient
-      .incomingPhoneNumbers(TWILIO_NUMBER_SID)
+      .incomingPhoneNumbers(TWILIO_NUMBER_SID_TEST)
       .update({ voiceUrl, voiceMethod: "POST" });
 
     return res.json({ ok: true, phoneNumber: incoming.phoneNumber, reused: true });
