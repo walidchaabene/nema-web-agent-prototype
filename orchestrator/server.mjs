@@ -259,6 +259,35 @@ app.post("/api/phone/go-live", async (req, res) => {
   }
 });
 
+app.post("/api/phone/release-number", async (req, res) => {
+  const { phoneNumberSid } = req.body || {};
+
+  if (!phoneNumberSid) {
+    return res.status(400).json({
+      ok: false,
+      error: "phoneNumberSid required",
+    });
+  }
+
+  try {
+    await twilioClient
+      .incomingPhoneNumbers(phoneNumberSid)
+      .remove();
+
+    return res.json({
+      ok: true,
+      released: true,
+    });
+  } catch (err) {
+    console.error("[release-number] failed:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "Failed to release Twilio number",
+    });
+  }
+});
+
+
 app.post("/voice", (req, res) => {
   try {
     const twiml = new twilio.twiml.VoiceResponse();
